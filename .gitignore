@@ -31,3 +31,19 @@ build/
 
 ### VS Code ###
 .vscode/
+.env
+.env.*
+application.properties
+# Backend - secrets
+src/main/resources/application.properties
+
+# Backend - fichiers générés
+target/
+
+# Frontend
+chargebook-frontend/node_modules/
+chargebook-frontend/build/
+
+# Divers
+.DS_Store
+*.log

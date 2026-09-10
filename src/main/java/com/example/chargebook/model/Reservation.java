@@ -21,6 +21,9 @@ public class Reservation {
     @Column(nullable = false)
     private String statut;
 
+    @Column
+    private String motifAnnulation;
+
     @Column(nullable = false)
     private UUID idUtilisateur;
 
@@ -38,6 +41,8 @@ public class Reservation {
     public void setDateFin(LocalDateTime dateFin) { this.dateFin = dateFin; }
     public String getStatut() { return statut; }
     public void setStatut(String statut) { this.statut = statut; }
+    public String getMotifAnnulation() { return motifAnnulation; }
+    public void setMotifAnnulation(String motifAnnulation) { this.motifAnnulation = motifAnnulation; }
     public UUID getIdUtilisateur() { return idUtilisateur; }
     public void setIdUtilisateur(UUID idUtilisateur) { this.idUtilisateur = idUtilisateur; }
     public UUID getIdBorne() { return idBorne; }
