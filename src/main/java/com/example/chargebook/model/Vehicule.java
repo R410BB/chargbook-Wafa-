@@ -11,10 +11,10 @@ public class Vehicule {
     @GeneratedValue
     private UUID idVehicule;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String immatriculation;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private UUID idUtilisateur;
 
     @Column

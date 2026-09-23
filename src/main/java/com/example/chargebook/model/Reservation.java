@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+
 @Entity
 @Table(name = "reservation")
 public class Reservation {
@@ -33,6 +34,16 @@ public class Reservation {
     @Column(nullable = false)
     private UUID idVehicule;
 
+    @Column(nullable = false)
+    private boolean rappelDebutEnvoye = false;
+
+    @Column(nullable = false)
+    private boolean rappelFinEnvoye = false;
+
+    public boolean isRappelDebutEnvoye() { return rappelDebutEnvoye; }
+    public void setRappelDebutEnvoye(boolean rappelDebutEnvoye) { this.rappelDebutEnvoye = rappelDebutEnvoye; }
+    public boolean isRappelFinEnvoye() { return rappelFinEnvoye; }
+    public void setRappelFinEnvoye(boolean rappelFinEnvoye) { this.rappelFinEnvoye = rappelFinEnvoye; }
     public UUID getIdReservation() { return idReservation; }
     public void setIdReservation(UUID idReservation) { this.idReservation = idReservation; }
     public LocalDateTime getDateDebut() { return dateDebut; }

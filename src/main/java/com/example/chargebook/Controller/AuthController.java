@@ -14,6 +14,8 @@ import com.example.chargebook.repository.InscriptionTokenRepository;
 import com.example.chargebook.service.EmailService;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.example.chargebook.model.ReinitialisationToken;
+import com.example.chargebook.repository.ReinitialisationTokenRepository;
 
 
 @RestController
@@ -26,12 +28,15 @@ public class AuthController {
 
     private final InscriptionTokenRepository tokenRepository;
     private final EmailService emailService;
+    private final ReinitialisationTokenRepository reinitialisationTokenRepository;
 
-    public AuthController(UtilisateurRepository utilisateurRepository, 
-                        InscriptionTokenRepository tokenRepository, 
+    public AuthController(UtilisateurRepository utilisateurRepository,
+                        InscriptionTokenRepository tokenRepository,
+                        ReinitialisationTokenRepository reinitialisationTokenRepository,
                         EmailService emailService) {
         this.utilisateurRepository = utilisateurRepository;
         this.tokenRepository = tokenRepository;
+        this.reinitialisationTokenRepository = reinitialisationTokenRepository;
         this.emailService = emailService;
     }
 
@@ -75,6 +80,13 @@ public class AuthController {
                 "role", utilisateur.getRole()
         );
     }
+    // Règle du projet : le mot de passe doit contenir au moins 8 caractères,
+    // appliquée à chaque point de création/modification de mot de passe.
+    private static final int LONGUEUR_MIN_MOT_DE_PASSE = 8;
+
+    private boolean motDePasseTropCourt(String motDePasse) {
+        return motDePasse == null || motDePasse.length() < LONGUEUR_MIN_MOT_DE_PASSE;
+    }
     @PostMapping("/register")
     public Object register(@RequestBody Map<String, String> body) {
         String email = body.get("email");
@@ -104,6 +116,9 @@ public class AuthController {
     @PostMapping("/demande-inscription")
     public Object demanderInscription(@RequestBody Map<String, String> body) {
         String email = body.get("email");
+        if (motDePasseTropCourt(body.get("motDePasse"))) {
+            return Map.of("erreur", "Le mot de passe doit contenir au moins 8 caractères.");
+        }
 
         if (email == null || email.isBlank()) {
             return Map.of("erreur", "L'adresse email est requise.");
@@ -150,6 +165,9 @@ public class AuthController {
         if (tokenOpt.isEmpty() || tokenOpt.get().isUtilise() || tokenOpt.get().getDateExpiration().isBefore(LocalDateTime.now())) {
             return Map.of("erreur", "Lien invalide ou expiré.");
         }
+        if (motDePasseTropCourt(body.get("motDePasse"))) {
+            return Map.of("erreur", "Le mot de passe doit contenir au moins 8 caractères.");
+        }
 
         InscriptionToken t = tokenOpt.get();
 
@@ -175,4 +193,87 @@ public class AuthController {
             "role", u.getRole()
         );
     }
+    @PostMapping("/mot-de-passe-oublie")
+public Object motDePasseOublie(@RequestBody Map<String, String> body) {
+    String email = body.get("email");
+
+    // Message toujours identique, que l'email existe ou non : on ne veut pas
+    // révéler quels emails ont un compte chez nous (sinon n'importe qui peut
+    // tester des adresses et déduire qui est inscrit sur ChargeBook).
+    String messageGenerique = "Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.";
+
+    if (email == null || email.isBlank()) {
+        return Map.of("message", messageGenerique);
+    }
+
+    Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findAll().stream()
+            .filter(u -> u.getEmail().equalsIgnoreCase(email))
+            .findFirst();
+
+    if (utilisateurOpt.isPresent()) {
+        ReinitialisationToken token = new ReinitialisationToken();
+        token.setEmail(email);
+        token.setToken(UUID.randomUUID().toString());
+        token.setDateExpiration(LocalDateTime.now().plusHours(1));
+        reinitialisationTokenRepository.save(token);
+
+        emailService.envoyerLienReinitialisation(email, token.getToken());
+    }
+
+    return Map.of("message", messageGenerique);
+}
+
+@GetMapping("/verifier-token-reinitialisation/{token}")
+public Object verifierTokenReinitialisation(@PathVariable String token) {
+    Optional<ReinitialisationToken> tokenOpt = reinitialisationTokenRepository.findByToken(token);
+    if (tokenOpt.isEmpty()) {
+        return Map.of("erreur", "Lien invalide.");
+    }
+    ReinitialisationToken t = tokenOpt.get();
+    if (t.isUtilise()) {
+        return Map.of("erreur", "Ce lien a déjà été utilisé.");
+    }
+    if (t.getDateExpiration().isBefore(LocalDateTime.now())) {
+        return Map.of("erreur", "Ce lien a expiré.");
+    }
+    return Map.of("email", t.getEmail());
+}
+
+@PostMapping("/reinitialiser-mot-de-passe")
+public Object reinitialiserMotDePasse(@RequestBody Map<String, String> body) {
+    String token = body.get("token");
+    String nouveauMotDePasse = body.get("motDePasse");
+
+    Optional<ReinitialisationToken> tokenOpt = reinitialisationTokenRepository.findByToken(token);
+
+    if (tokenOpt.isEmpty() || tokenOpt.get().isUtilise()
+            || tokenOpt.get().getDateExpiration().isBefore(LocalDateTime.now())) {
+        return Map.of("erreur", "Lien invalide ou expiré.");
+    }
+
+    if (motDePasseTropCourt(nouveauMotDePasse)) {
+        return Map.of("erreur", "Le mot de passe doit contenir au moins 8 caractères.");
+    }
+
+    ReinitialisationToken t = tokenOpt.get();
+
+    Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findAll().stream()
+            .filter(u -> u.getEmail().equalsIgnoreCase(t.getEmail()))
+            .findFirst();
+
+    if (utilisateurOpt.isEmpty()) {
+        return Map.of("erreur", "Compte introuvable.");
+    }
+
+    Utilisateur utilisateur = utilisateurOpt.get();
+    utilisateur.setMotDePasse(encoder.encode(nouveauMotDePasse));
+    utilisateurRepository.save(utilisateur);
+
+    t.setUtilise(true);
+    reinitialisationTokenRepository.save(t);
+
+    emailService.envoyerConfirmationReinitialisation(utilisateur.getEmail(), utilisateur.getPrenom());
+
+    return Map.of("message", "Mot de passe modifié avec succès.");
+}
 }
